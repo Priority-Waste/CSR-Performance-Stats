@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priority Waste · CSR Dashboard v1.3</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --yellow:  #FFC20E;
+  --black:   #000000;
+  --white:   #FFFFFF;
+  --panel:   #111111;
+  --panel2:  #1a1a1a;
+  --border:  #2c2c2c;
+  --border2: #3a3a3a;
+  --green:   #2ECC71;
+  --red:     #E74C3C;
+  --amber:   #F39C12;
+  --y-dim:   rgba(255,194,14,.12);
+  --t1: #FFFFFF;
+  --t2: #CCCCCC;
+  --t3: #888888;
+  --t4: #555555;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--black);color:var(--white);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+
+/* ═══ HEADER ═══ */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;height:62px;
+  background:var(--black);border-bottom:3px solid var(--yellow);
+  flex-shrink:0;position:relative;z-index:50;
+}
+.logo-block{display:flex;align-items:center;gap:12px;}
+.logo-stripe{width:5px;height:42px;background:var(--yellow);border-radius:2px;}
+.logo-text{font-family:'Bebas Neue',sans-serif;font-size:25px;letter-spacing:3px;line-height:1;}
+.logo-sub{font-size:10px;color:var(--t3);letter-spacing:2.5px;text-transform:uppercase;margin-top:2px;}
+.logo-ver{font-size:9px;color:var(--yellow);letter-spacing:1px;margin-top:2px;opacity:.7;}
+
+.header-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:5px;}
+.fpill{
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:6px 16px;border-radius:20px;
+  border:1px solid var(--border2);background:transparent;color:var(--t3);
+  cursor:pointer;transition:all .18s;position:relative;
+}
+.fpill:hover{border-color:var(--yellow);color:var(--yellow);background:var(--y-dim);}
+.fpill.active{background:var(--yellow);color:var(--black);border-color:var(--yellow);}
+.fpill.loaded::after{
+  content:'';position:absolute;top:4px;right:5px;
+  width:6px;height:6px;border-radius:50%;background:var(--green);
+  border:1.5px solid var(--black);
+}
+.fpill.active.loaded::after{border-color:var(--yellow);}
+
+.header-right{display:flex;align-items:center;gap:18px;}
+.live-badge{
+  display:flex;align-items:center;gap:7px;
+  background:var(--y-dim);border:1px solid var(--yellow);
+  padding:5px 12px;border-radius:3px;
+  font-size:11px;font-weight:700;color:var(--yellow);
+  letter-spacing:1.5px;text-transform:uppercase;
+}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--yellow);animation:blink 1.8s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#clock{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:var(--yellow);}
+#dateline{font-size:10px;color:var(--t3);letter-spacing:1px;text-align:right;margin-top:1px;}
+
+/* ═══ IMPORT BAR ═══ */
+.import-bar{
+  background:var(--panel);border-bottom:1px solid var(--border);
+  padding:9px 28px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  flex-shrink:0;
+}
+.import-label{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;}
+.btn-upload{
+  background:var(--yellow);color:var(--black);border:none;
+  padding:7px 20px;border-radius:3px;
+  font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+  transition:opacity .18s;white-space:nowrap;
+}
+.btn-upload:hover{opacity:.82;}
+.btn-clear-all{
+  background:transparent;border:1px solid var(--border2);color:var(--t4);
+  padding:7px 14px;border-radius:3px;
+  font-family:'DM Sans',sans-serif;font-weight:600;font-size:11px;
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+  transition:all .18s;white-space:nowrap;
+}
+.btn-clear-all:hover{border-color:var(--red);color:var(--red);}
+input[type=file]{display:none;}
+
+.import-meta{display:flex;align-items:center;gap:8px;}
+#importPeriod{
+  background:var(--panel2);border:1px solid var(--border2);color:var(--t2);
+  padding:6px 10px;border-radius:3px;font-size:12px;
+  font-family:'DM Sans',sans-serif;cursor:pointer;
+}
+#importPeriod:focus{outline:none;border-color:var(--yellow);}
+#importMsg{font-size:12px;color:var(--t3);}
+#importMsg.ok{color:var(--green);}
+#importMsg.err{color:var(--red);}
+
+.storage-indicator{
+  display:flex;align-items:center;gap:6px;
+  margin-left:auto;font-size:11px;color:var(--t4);
+}
+.storage-dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+
+/* ═══ PERIOD BAR ═══ */
+.period-bar{
+  background:#0a0a0a;border-bottom:1px solid var(--border);
+  padding:5px 28px;display:flex;align-items:center;gap:10px;
+  flex-shrink:0;
+}
+.pb-label{font-size:10px;color:var(--t4);text-transform:uppercase;letter-spacing:1.5px;}
+.pb-name{font-size:12px;font-weight:700;color:var(--yellow);letter-spacing:1px;}
+.pb-info{font-size:11px;color:var(--t3);}
+.pb-updated{font-size:10px;color:var(--t4);font-style:italic;}
+.pb-clear{
+  background:transparent;border:1px solid var(--border2);color:var(--t4);
+  font-size:10px;padding:3px 8px;border-radius:3px;cursor:pointer;
+  font-family:'DM Sans',sans-serif;letter-spacing:1px;text-transform:uppercase;
+  transition:all .15s;margin-left:auto;
+}
+.pb-clear:hover{border-color:var(--red);color:var(--red);}
+
+/* ═══ SUMMARY ═══ */
+.summary-strip{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:1px;background:var(--border);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.s-tile{background:var(--panel);padding:14px 18px;}
+.stl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px;font-weight:600;}
+.stn{font-family:'Bebas Neue',sans-serif;font-size:34px;color:var(--yellow);line-height:1;}
+.sts{font-size:10px;color:var(--t3);margin-top:2px;}
+
+/* ═══ BODY ═══ */
+.body-grid{display:grid;grid-template-columns:1fr 296px;flex:1;overflow:hidden;}
+
+/* ═══ LEADERBOARD ═══ */
+.lb-pane{padding:18px 22px;overflow-y:auto;border-right:1px solid var(--border);}
+.lb-pane::-webkit-scrollbar{width:4px;}
+.lb-pane::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:3px;color:var(--yellow);}
+.sort-group{display:flex;gap:5px;}
+.sort-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--t3);
+  font-size:10px;padding:4px 10px;border-radius:3px;cursor:pointer;
+  font-family:'DM Sans',sans-serif;letter-spacing:1px;text-transform:uppercase;
+  transition:all .15s;
+}
+.sort-btn:hover{border-color:var(--yellow);color:var(--yellow);}
+.sort-btn.active{background:var(--y-dim);border-color:var(--yellow);color:var(--yellow);}
+
+table.lb{width:100%;border-collapse:collapse;}
+table.lb thead th{
+  font-size:10px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;
+  padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);
+  white-space:nowrap;font-weight:600;
+}
+th.r,td.r{text-align:right;}
+.lb-row{border-bottom:1px solid var(--border);transition:background .12s;}
+.lb-row:hover{background:var(--y-dim);}
+.lb-row td{padding:9px 8px;vertical-align:middle;}
+.top1-row td:first-child{border-left:3px solid var(--yellow);}
+.top2-row td:first-child{border-left:3px solid #999;}
+.top3-row td:first-child{border-left:3px solid #7a4f1d;}
+
+.rank-n{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--t3);width:36px;padding-right:4px;}
+.r1c{color:var(--yellow)!important;}
+.r2c{color:#C0C0C0!important;}
+.r3c{color:#CD7F32!important;}
+
+.av{width:32px;height:32px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--yellow);flex-shrink:0;}
+.csr-name{font-weight:600;font-size:13px;}
+.csr-email{font-size:10px;color:var(--t2);margin-top:1px;}
+.big-num{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--white);}
+.sub-num{font-size:10px;color:var(--t3);font-weight:500;}
+.ar-cell{display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.ar-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+.bar-cell{min-width:130px;}
+.bar-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:4px;font-weight:500;}
+.bar-track{height:7px;background:var(--border2);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.bar-pct{font-size:11px;font-weight:700;text-align:right;margin-top:3px;}
+.c-green{color:var(--green);}
+.c-amber{color:var(--amber);}
+.c-red{color:var(--red);}
+
+.no-data{text-align:center;padding:50px 20px;}
+.no-data h2{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--t3);margin-bottom:8px;}
+.no-data p{font-size:12px;line-height:1.9;color:var(--t2);}
+.no-data .nd-arrow{font-size:26px;color:var(--yellow);margin-bottom:10px;}
+.no-data code{background:var(--panel2);padding:2px 7px;border-radius:3px;font-size:11px;color:var(--yellow);}
+
+/* ═══ RIGHT PANEL ═══ */
+.right-pane{padding:14px 12px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.right-pane::-webkit-scrollbar{width:3px;}
+.right-pane::-webkit-scrollbar-thumb{background:var(--border2);}
+.r-card{background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:13px 14px;}
+.r-card-title{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;font-weight:600;}
+
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:6px;}
+.pod-col{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.pod-bar{width:62px;border-radius:3px 3px 0 0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;}
+.pod-rank{font-family:'Bebas Neue',sans-serif;font-size:17px;}
+.pod-name{font-size:10px;color:var(--t2);text-align:center;max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pod-val{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--yellow);}
+
+.gauge-center{text-align:center;padding:4px 0;}
+.gauge-big{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--yellow);line-height:1;}
+.gauge-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:2px;font-weight:500;}
+.gauge-track{height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-top:8px;}
+.gauge-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--yellow),#ffe47a);transition:width .7s ease;}
+.gauge-ends{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:4px;font-weight:500;}
+
+.two-stat{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.ts-box{background:#0a0a0a;border:1px solid var(--border);border-radius:3px;padding:10px;text-align:center;}
+.ts-num{font-family:'Bebas Neue',sans-serif;font-size:26px;}
+.ts-lbl{font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:1px;font-weight:500;}
+
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);}
+.metric-row:last-child{border-bottom:none;}
+.m-lbl{font-size:11px;color:var(--t2);font-weight:500;}
+.m-val{font-family:'Bebas Neue',sans-serif;font-size:18px;}
+
+footer{text-align:center;padding:7px;font-size:9px;color:var(--t4);letter-spacing:2px;text-transform:uppercase;border-top:1px solid var(--border);flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo-block">
+    <div class="logo-stripe"></div>
+    <div>
+      <div class="logo-text">Priority Waste</div>
+      <div class="logo-sub">CSR Performance · Amazon Connect</div>
+      <div class="logo-ver">v1.3</div>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <button class="fpill active" id="pill-today"  onclick="switchPeriod('today',this)">Today</button>
+    <button class="fpill"        id="pill-week"   onclick="switchPeriod('week',this)">This Week</button>
+    <button class="fpill"        id="pill-month"  onclick="switchPeriod('month',this)">This Month</button>
+    <button class="fpill"        id="pill-custom" onclick="switchPeriod('custom',this)">Custom</button>
+  </div>
+
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>Live</div>
+    <div>
+      <div id="clock">--:--:--</div>
+      <div id="dateline">--</div>
+    </div>
+  </div>
+</header>
+
+<!-- IMPORT BAR -->
+<div class="import-bar">
+  <span class="import-label">Amazon Connect Export:</span>
+  <div class="import-meta">
+    <select id="importPeriod">
+      <option value="today">Load into → Today</option>
+      <option value="week">Load into → This Week</option>
+      <option value="month">Load into → This Month</option>
+      <option value="custom">Load into → Custom</option>
+    </select>
+    <button class="btn-upload" onclick="document.getElementById('csvIn').click()">⬆ Upload CSV</button>
+    <input type="file" id="csvIn" accept=".csv" onchange="loadCSV(event)">
+    <span id="importMsg">Loading saved data…</span>
+  </div>
+  <button class="btn-clear-all" onclick="clearAllData()">✕ Clear All Data</button>
+  <div class="storage-indicator">
+    <div class="storage-dot" id="storageDot"></div>
+    <span id="storageLabel">Saved locally</span>
+  </div>
+</div>
+
+<!-- PERIOD BAR -->
+<div class="period-bar">
+  <span class="pb-label">Showing:</span>
+  <span class="pb-name"    id="pbName">Today</span>
+  <span class="pb-info"    id="pbInfo">—</span>
+  <span class="pb-updated" id="pbUpdated"></span>
+  <button class="pb-clear" onclick="clearActivePeriod()">✕ Clear Period</button>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary-strip">
+  <div class="s-tile"><div class="stl">Contacts Handled</div><div class="stn" id="sTotalCalls">—</div><div class="sts">All agents</div></div>
+  <div class="s-tile"><div class="stl">Avg Answer Rate</div><div class="stn" id="sAnswerRate">—</div><div class="sts">Team average</div></div>
+  <div class="s-tile"><div class="stl">Total Callbacks</div><div class="stn" id="sCallbacks">—</div><div class="sts">Callback contacts</div></div>
+  <div class="s-tile"><div class="stl">Total Missed</div><div class="stn" id="sMissed">—</div><div class="sts">Missed contacts</div></div>
+  <div class="s-tile"><div class="stl">Avg Handle Time</div><div class="stn" id="sAHT">—</div><div class="sts">Seconds</div></div>
+  <div class="s-tile"><div class="stl">Active Agents</div><div class="stn" id="sAgents">—</div><div class="sts">Ranked</div></div>
+</div>
+
+<!-- BODY -->
+<div class="body-grid">
+  <div class="lb-pane">
+    <div class="section-head">
+      <div class="section-title">Stack Ranking</div>
+      <div class="sort-group">
+        <button class="sort-btn active" onclick="sortBy('contacts_handled',this)">Calls</button>
+        <button class="sort-btn" onclick="sortBy('agent_answer_rate',this)">Answer Rate</button>
+        <button class="sort-btn" onclick="sortBy('avg_handle_time',this)">AHT</button>
+        <button class="sort-btn" onclick="sortBy('contacts_missed',this)">Missed</button>
+        <button class="sort-btn" onclick="sortBy('name',this)">Name</button>
+      </div>
+    </div>
+    <div id="tableWrap"></div>
+  </div>
+
+  <div class="right-pane">
+    <div class="r-card">
+      <div class="r-card-title">Top 3 Performers</div>
+      <div class="podium" id="podium"><div style="color:var(--t4);font-size:11px;text-align:center;padding:20px 0">No data</div></div>
+    </div>
+    <div class="r-card">
+      <div class="r-card-title">Team Avg Answer Rate</div>
+      <div class="gauge-center">
+        <div class="gauge-big" id="gaugeNum">—</div>
+        <div class="gauge-lbl">answer rate</div>
+        <div class="gauge-track"><div class="gauge-fill" id="gaugeFill" style="width:0%"></div></div>
+        <div class="gauge-ends"><span>0%</span><span>100%</span></div>
+      </div>
+    </div>
+    <div class="r-card">
+      <div class="r-card-title">Contacts Handled — Target vs Actual</div>
+      <div class="two-stat">
+        <div class="ts-box"><div class="ts-num c-green" id="tsActual">—</div><div class="ts-lbl">Actual</div></div>
+        <div class="ts-box"><div class="ts-num" style="color:#AAAAAA" id="tsTarget">—</div><div class="ts-lbl">Target (50 × agents)</div></div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="bar-track" style="height:8px"><div class="bar-fill" id="teamBar" style="width:0%"></div></div>
+        <div class="bar-pct" id="teamBarPct" style="margin-top:4px">—</div>
+      </div>
+    </div>
+    <div class="r-card">
+      <div class="r-card-title">Team Metrics</div>
+      <div class="metric-row"><span class="m-lbl">Total Callbacks</span><span class="m-val" id="mCB">—</span></div>
+      <div class="metric-row"><span class="m-lbl">Total Missed</span><span class="m-val c-red" id="mMissed">—</span></div>
+      <div class="metric-row"><span class="m-lbl">Total Transferred</span><span class="m-val" id="mXfer">—</span></div>
+      <div class="metric-row"><span class="m-lbl">Avg After-Contact Work</span><span class="m-val" id="mACW">—</span></div>
+    </div>
+  </div>
+</div>
+
+<footer>Priority Waste · Follow Priority · Brand Kit 4 · v1.3 · Data stored locally in browser</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   STORAGE KEYS  — one key per period in localStorage
+═══════════════════════════════════════════════════ */
+const STORAGE_KEY  = 'pw_csr_dashboard_v1';  // root namespace
+const PERIODS      = ['today','week','month','custom'];
+const PERIOD_LABELS = { today:'Today', week:'This Week', month:'This Month', custom:'Custom' };
+
+/* ── Save one period's dataset to localStorage ── */
+function saveDataset(period, rows, filename) {
+  try {
+    const payload = { rows, filename, savedAt: new Date().toISOString() };
+    localStorage.setItem(`${STORAGE_KEY}_${period}`, JSON.stringify(payload));
+    updateStorageIndicator();
+  } catch(e) {
+    console.warn('localStorage write failed:', e);
+  }
+}
+
+/* ── Load one period's dataset from localStorage ── */
+function loadDataset(period) {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY}_${period}`);
+    if (!raw) return null;
+    return JSON.parse(raw); // { rows, filename, savedAt }
+  } catch(e) {
+    return null;
+  }
+}
+
+/* ── Remove one period ── */
+function removeDataset(period) {
+  try {
+    localStorage.removeItem(`${STORAGE_KEY}_${period}`);
+    updateStorageIndicator();
+  } catch(e) {}
+}
+
+/* ── Remove all periods ── */
+function removeAllDatasets() {
+  PERIODS.forEach(p => {
+    try { localStorage.removeItem(`${STORAGE_KEY}_${p}`); } catch(e) {}
+  });
+  updateStorageIndicator();
+}
+
+/* ── Update the green "Saved locally" indicator ── */
+function updateStorageIndicator() {
+  const hasAny = PERIODS.some(p => localStorage.getItem(`${STORAGE_KEY}_${p}`));
+  const dot    = document.getElementById('storageDot');
+  const lbl    = document.getElementById('storageLabel');
+  dot.style.background = hasAny ? 'var(--green)' : 'var(--t4)';
+  lbl.textContent      = hasAny ? 'Data saved locally' : 'No saved data';
+}
+
+/* ── Format a saved timestamp for display ── */
+function formatSavedAt(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    return 'Updated ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+           + ' ' + d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return ''; }
+}
+
+/* ═══════════════════════════════════════════════════
+   APP STATE
+═══════════════════════════════════════════════════ */
+let activePeriod = 'today';
+let currentSort  = 'contacts_handled';
+
+/* ═══════════════════════════════════════════════════
+   CLOCK
+═══════════════════════════════════════════════════ */
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').textContent    = n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('dateline').textContent = n.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+}
+tick(); setInterval(tick, 1000);
+
+/* ═══════════════════════════════════════════════════
+   PERIOD SWITCHING
+═══════════════════════════════════════════════════ */
+function switchPeriod(period, btn) {
+  activePeriod = period;
+  document.querySelectorAll('.fpill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('importPeriod').value = period;
+  updatePeriodBar();
+  render();
+}
+
+function updatePeriodBar() {
+  const saved = loadDataset(activePeriod);
+  document.getElementById('pbName').textContent    = PERIOD_LABELS[activePeriod];
+  document.getElementById('pbInfo').textContent    = saved ? `${saved.rows.length} agents · ${saved.filename}` : 'No data — upload a CSV above';
+  document.getElementById('pbUpdated').textContent = saved ? formatSavedAt(saved.savedAt) : '';
+}
+
+/* ═══════════════════════════════════════════════════
+   UPLOAD — parse CSV then save to localStorage
+═══════════════════════════════════════════════════ */
+function loadCSV(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const period = document.getElementById('importPeriod').value;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const rows = parseCSV(ev.target.result);
+      if (!rows.length) throw new Error('No valid data rows found');
+
+      // ── Save to localStorage (overwrites any previous data for this period) ──
+      saveDataset(period, rows, file.name);
+
+      // Mark pill as loaded
+      const pill = document.getElementById('pill-' + period);
+      if (pill) pill.classList.add('loaded');
+
+      setImportMsg(`✓ Saved ${rows.length} agents into "${PERIOD_LABELS[period]}"`, 'ok');
+
+      // Auto-switch view to the period just uploaded
+      switchPeriod(period, pill);
+
+    } catch(err) {
+      setImportMsg('⚠ ' + err.message, 'err');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // reset so the same file can be re-uploaded
+}
+
+function setImportMsg(msg, cls) {
+  const el = document.getElementById('importMsg');
+  el.textContent = msg;
+  el.className   = cls || '';
+}
+
+/* ═══════════════════════════════════════════════════
+   CLEAR
+═══════════════════════════════════════════════════ */
+function clearActivePeriod() {
+  removeDataset(activePeriod);
+  const pill = document.getElementById('pill-' + activePeriod);
+  if (pill) pill.classList.remove('loaded');
+  setImportMsg('Period cleared — upload a new CSV to reload');
+  updatePeriodBar();
+  render();
+}
+
+function clearAllData() {
+  if (!confirm('Clear ALL saved data for every period? This cannot be undone.')) return;
+  removeAllDatasets();
+  PERIODS.forEach(p => {
+    const pill = document.getElementById('pill-' + p);
+    if (pill) pill.classList.remove('loaded');
+  });
+  setImportMsg('All data cleared');
+  updatePeriodBar();
+  render();
+}
+
+/* ═══════════════════════════════════════════════════
+   CSV PARSER — "Contacts Handled" drives the Calls column
+═══════════════════════════════════════════════════ */
+function parseCSV(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) throw new Error('File needs a header row and at least one data row');
+
+  const rawHeader = lines[0].replace(/^\uFEFF/, '');
+  const headers   = rawHeader.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+  function findCol(...candidates) {
+    for (const c of candidates) {
+      const lower = c.toLowerCase();
+      let idx = headers.findIndex(h => h.toLowerCase() === lower);
+      if (idx >= 0) return idx;
+      idx = headers.findIndex(h => h.toLowerCase().includes(lower));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  }
+
+  const iAgent    = findCol('agent');
+  const iHandled  = findCol('contacts handled');                         // ← primary Calls field
+  const iAnswerR  = findCol('agent answer rate', 'answer rate');
+  const iMissed   = findCol('contacts missed', 'missed');
+  const iAHT      = findCol('average handle time', 'avg handle time', 'handle time');
+  const iACW      = findCol('average after contact work time', 'after contact work', 'acw');
+  const iCallback = findCol('callback contacts handled', 'callback contacts', 'callbacks');
+  const iOutbound = findCol('contacts handled outbound', 'outbound');
+  const iXfer     = findCol('contacts transferred out', 'transferred out', 'transferred');
+
+  if (iAgent   < 0) throw new Error('"Agent" column not found. Check your Amazon Connect export.');
+  if (iHandled < 0) throw new Error('"Contacts Handled" column not found. Make sure you\'re exporting the right report.');
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols  = lines[i].split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+    const email = cols[iAgent] || '';
+    if (!email) continue;
+    const name  = email.includes('@') ? formatName(email.split('@')[0]) : email;
+    const rawAR = iAnswerR >= 0 ? cols[iAnswerR] : '0';
+    rows.push({
+      name, email,
+      contacts_handled:  parseInt(cols[iHandled])                      || 0,
+      agent_answer_rate: parseFloat(rawAR.replace('%',''))             || 0,
+      contacts_missed:   iMissed   >= 0 ? parseInt(cols[iMissed])     || 0 : 0,
+      avg_acw:           iACW      >= 0 ? parseInt(cols[iACW])        || 0 : 0,
+      avg_handle_time:   iAHT      >= 0 ? parseInt(cols[iAHT])        || 0 : 0,
+      callback_contacts: iCallback >= 0 ? parseInt(cols[iCallback])   || 0 : 0,
+      outbound:          iOutbound >= 0 ? parseInt(cols[iOutbound])   || 0 : 0,
+      transferred:       iXfer     >= 0 ? parseInt(cols[iXfer])       || 0 : 0,
+    });
+  }
+  return rows.filter(r => r.name);
+}
+
+function formatName(slug) {
+  const parts = slug.split(/[._-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  if (parts.length === 1 && parts[0].length > 2) {
+    return parts[0].charAt(0) + '. ' + parts[0].slice(1);
+  }
+  return parts.join(' ');
+}
+
+/* ═══════════════════════════════════════════════════
+   SORT
+═══════════════════════════════════════════════════ */
+function sortBy(key, btn) {
+  currentSort = key;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — reads from localStorage via activePeriod
+═══════════════════════════════════════════════════ */
+function render() {
+  const saved = loadDataset(activePeriod);
+  if (!saved || !saved.rows.length) {
+    renderEmpty();
+    clearStats();
+    return;
+  }
+
+  const rows = [...saved.rows].sort((a,b) => {
+    if (currentSort === 'name')              return a.name.localeCompare(b.name);
+    if (currentSort === 'agent_answer_rate') return b.agent_answer_rate - a.agent_answer_rate;
+    if (currentSort === 'avg_handle_time')   return a.avg_handle_time - b.avg_handle_time;
+    if (currentSort === 'contacts_missed')   return a.contacts_missed - b.contacts_missed;
+    return b.contacts_handled - a.contacts_handled;
+  });
+
+  renderSummary(rows);
+  renderTable(rows);
+  renderRight(rows);
+}
+
+function clearStats() {
+  ['sTotalCalls','sAnswerRate','sCallbacks','sMissed','sAHT','sAgents',
+   'gaugeNum','tsActual','tsTarget','teamBarPct','mCB','mMissed','mXfer','mACW']
+    .forEach(id => { document.getElementById(id).textContent = '—'; });
+  document.getElementById('gaugeFill').style.width = '0%';
+  document.getElementById('teamBar').style.cssText  = 'width:0%';
+  document.getElementById('podium').innerHTML = '<div style="color:var(--t4);font-size:11px;text-align:center;padding:20px 0">No data</div>';
+}
+
+function renderEmpty() {
+  document.getElementById('tableWrap').innerHTML = `
+    <div class="no-data">
+      <div class="nd-arrow">↑</div>
+      <h2>No Data — ${PERIOD_LABELS[activePeriod]}</h2>
+      <p>
+        Export a <strong style="color:var(--yellow)">${PERIOD_LABELS[activePeriod]}</strong> report from Amazon Connect.<br>
+        Select <strong style="color:var(--yellow)">Load into → ${PERIOD_LABELS[activePeriod]}</strong>, then click <strong style="color:var(--yellow)">Upload CSV</strong>.<br><br>
+        Required column: <code>Contacts Handled</code><br>
+        Supported: <code>Agent Answer Rate · Contacts Missed · Average Handle Time</code><br>
+        <code>Callback Contacts Handled · Contacts Transferred Out</code>
+      </p>
+    </div>`;
+}
+
+function renderSummary(rows) {
+  const total   = rows.reduce((s,r) => s + r.contacts_handled, 0);
+  const avgAR   = rows.length ? (rows.reduce((s,r) => s + r.agent_answer_rate, 0) / rows.length).toFixed(1) + '%' : '—';
+  const totalCB = rows.reduce((s,r) => s + r.callback_contacts, 0);
+  const missed  = rows.reduce((s,r) => s + r.contacts_missed, 0);
+  const avgAHT  = rows.length ? Math.round(rows.reduce((s,r) => s + r.avg_handle_time, 0) / rows.length) : 0;
+  document.getElementById('sTotalCalls').textContent = total.toLocaleString();
+  document.getElementById('sAnswerRate').textContent = avgAR;
+  document.getElementById('sCallbacks').textContent  = totalCB.toLocaleString();
+  document.getElementById('sMissed').textContent     = missed.toLocaleString();
+  document.getElementById('sAHT').textContent        = avgAHT + 's';
+  document.getElementById('sAgents').textContent     = rows.length;
+}
+
+function initials(name) {
+  return name.split(/\s+/).slice(0,2).map(w => w[0]?.toUpperCase() || '').join('');
+}
+function arColor(r) {
+  return r >= 95 ? 'var(--green)' : r >= 90 ? 'var(--amber)' : 'var(--red)';
+}
+
+function renderTable(rows) {
+  const wrap   = document.getElementById('tableWrap');
+  const TARGET = 50;
+  let tbody = '';
+  rows.forEach((r, i) => {
+    const rank      = i + 1;
+    const pct       = TARGET > 0 ? (r.contacts_handled / TARGET) * 100 : 0;
+    const fillPct   = Math.min(pct, 100).toFixed(1);
+    const fillColor = pct >= 100 ? 'var(--green)' : pct >= 80 ? 'var(--amber)' : 'var(--red)';
+    const pctCls    = pct >= 100 ? 'c-green' : pct >= 80 ? 'c-amber' : 'c-red';
+    const pctLabel  = pct >= 200 ? '200%+ ✦' : Math.round(pct) + '%';
+    const rowCls    = rank===1 ? 'lb-row top1-row' : rank===2 ? 'lb-row top2-row' : rank===3 ? 'lb-row top3-row' : 'lb-row';
+    const rankCls   = rank===1 ? 'r1c' : rank===2 ? 'r2c' : rank===3 ? 'r3c' : '';
+
+    tbody += `
+    <tr class="${rowCls}">
+      <td><div class="rank-n ${rankCls}">${rank}</div></td>
+      <td><div class="av">${initials(r.name)}</div></td>
+      <td>
+        <div class="csr-name">${r.name}</div>
+        <div class="csr-email">${r.email}</div>
+      </td>
+      <td class="r">
+        <div class="big-num">${r.contacts_handled.toLocaleString()}</div>
+        <div class="sub-num">contacts handled</div>
+      </td>
+      <td class="r">
+        <div class="big-num">${r.callback_contacts.toLocaleString()}</div>
+        <div class="sub-num">callbacks</div>
+      </td>
+      <td>
+        <div class="ar-cell">
+          <div class="ar-dot" style="background:${arColor(r.agent_answer_rate)}"></div>
+          <span style="font-size:13px;font-weight:600;color:${arColor(r.agent_answer_rate)}">${r.agent_answer_rate.toFixed(1)}%</span>
+        </div>
+      </td>
+      <td class="r">
+        <div style="font-size:13px;font-weight:600;color:var(--red)">${r.contacts_missed.toLocaleString()}</div>
+        <div class="sub-num">missed</div>
+      </td>
+      <td class="r">
+        <div style="font-size:13px;font-weight:600;color:#CCCCCC">${r.avg_handle_time}s</div>
+        <div class="sub-num">AHT</div>
+      </td>
+      <td class="bar-cell">
+        <div class="bar-meta"><span>0</span><span>Target ${TARGET}</span></div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${fillPct}%;background:${fillColor}"></div>
+        </div>
+        <div class="bar-pct ${pctCls}">${pctLabel} of target</div>
+      </td>
+    </tr>`;
+  });
+
+  wrap.innerHTML = `
+  <table class="lb">
+    <thead>
+      <tr>
+        <th>#</th><th></th><th>Agent</th>
+        <th class="r">Contacts Handled</th>
+        <th class="r">Callbacks</th>
+        <th>Answer Rate</th>
+        <th class="r">Missed</th>
+        <th class="r">AHT</th>
+        <th>Target vs Actual</th>
+      </tr>
+    </thead>
+    <tbody>${tbody}</tbody>
+  </table>`;
+}
+
+function renderRight(rows) {
+  const bycalls = [...rows].sort((a,b) => b.contacts_handled - a.contacts_handled);
+  const top3    = bycalls.slice(0,3);
+  const colors  = ['var(--yellow)','#C0C0C0','#CD7F32'];
+  const heights = [100,72,58];
+  const order   = [1,0,2];
+  let pcols = '';
+  order.forEach(idx => {
+    if (!top3[idx]) return;
+    const r = top3[idx]; const h = heights[idx]; const col = colors[idx];
+    pcols += `<div class="pod-col">
+      <div class="pod-val">${r.contacts_handled.toLocaleString()}</div>
+      <div class="pod-bar" style="height:${h}px;background:${col}18;border-top:3px solid ${col}">
+        <div class="pod-rank" style="color:${col}">${idx+1}</div>
+      </div>
+      <div class="pod-name">${r.name.split(' ')[0]}</div>
+    </div>`;
+  });
+  document.getElementById('podium').innerHTML = pcols || '<div style="color:var(--t4);font-size:11px;text-align:center;padding:20px 0">No data</div>';
+
+  const avgAR = rows.reduce((s,r) => s + r.agent_answer_rate, 0) / rows.length;
+  document.getElementById('gaugeNum').textContent  = avgAR.toFixed(1) + '%';
+  document.getElementById('gaugeFill').style.width = Math.min(avgAR,100) + '%';
+
+  const total      = rows.reduce((s,r) => s + r.contacts_handled, 0);
+  const teamTarget = 50 * rows.length;
+  const tPct       = teamTarget > 0 ? (total / teamTarget) * 100 : 0;
+  const tFillPct   = Math.min(tPct,100).toFixed(1);
+  const tColor     = tPct >= 100 ? 'var(--green)' : tPct >= 80 ? 'var(--amber)' : 'var(--red)';
+  const tPctCls    = tPct >= 100 ? 'c-green' : tPct >= 80 ? 'c-amber' : 'c-red';
+  document.getElementById('tsActual').textContent   = total.toLocaleString();
+  document.getElementById('tsTarget').textContent   = teamTarget.toLocaleString();
+  document.getElementById('teamBar').style.cssText  = `width:${tFillPct}%;background:${tColor}`;
+  document.getElementById('teamBarPct').textContent = (tPct >= 200 ? '200%+' : Math.round(tPct) + '%') + ' of target';
+  document.getElementById('teamBarPct').className   = 'bar-pct ' + tPctCls;
+
+  document.getElementById('mCB').textContent     = rows.reduce((s,r) => s + r.callback_contacts, 0).toLocaleString();
+  document.getElementById('mMissed').textContent  = rows.reduce((s,r) => s + r.contacts_missed, 0).toLocaleString();
+  document.getElementById('mXfer').textContent    = rows.reduce((s,r) => s + r.transferred, 0).toLocaleString();
+  const avgACW = Math.round(rows.reduce((s,r) => s + r.avg_acw, 0) / rows.length);
+  document.getElementById('mACW').textContent     = avgACW + 's';
+}
+
+/* ═══════════════════════════════════════════════════
+   BOOT — restore state from localStorage on page load
+═══════════════════════════════════════════════════ */
+(function boot() {
+  // Restore loaded pill indicators for any period that has saved data
+  PERIODS.forEach(p => {
+    const saved = loadDataset(p);
+    if (saved && saved.rows.length) {
+      const pill = document.getElementById('pill-' + p);
+      if (pill) pill.classList.add('loaded');
+    }
+  });
+
+  // Pick the first period that has data as the active view, else default to Today
+  const firstLoaded = PERIODS.find(p => loadDataset(p));
+  if (firstLoaded) {
+    const btn = document.getElementById('pill-' + firstLoaded);
+    activePeriod = firstLoaded;
+    document.querySelectorAll('.fpill').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.getElementById('importPeriod').value = firstLoaded;
+  }
+
+  updateStorageIndicator();
+  updatePeriodBar();
+
+  const anyData = PERIODS.some(p => loadDataset(p));
+  setImportMsg(anyData ? '✓ Data restored from last session' : 'No saved data — upload a CSV to begin', anyData ? 'ok' : '');
+
+  render();
+})();
+</script>
+</body>
+</html>
