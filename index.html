@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Priority Waste · CSR Dashboard v1.3</title>
+<title>Priority Waste · CSR Dashboard v1.4</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -203,6 +203,7 @@ th.r,td.r{text-align:right;}
 .no-data p{font-size:12px;line-height:1.9;color:var(--t2);}
 .no-data .nd-arrow{font-size:26px;color:var(--yellow);margin-bottom:10px;}
 .no-data code{background:var(--panel2);padding:2px 7px;border-radius:3px;font-size:11px;color:var(--yellow);}
+.talk-pct{font-size:11px;color:var(--t3);font-weight:500;}
 
 /* ═══ RIGHT PANEL ═══ */
 .right-pane{padding:14px 12px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
@@ -247,7 +248,7 @@ footer{text-align:center;padding:7px;font-size:9px;color:var(--t4);letter-spacin
     <div>
       <div class="logo-text">Priority Waste</div>
       <div class="logo-sub">CSR Performance · Amazon Connect</div>
-      <div class="logo-ver">v1.3</div>
+      <div class="logo-ver">v1.4</div>
     </div>
   </div>
 
@@ -353,12 +354,14 @@ footer{text-align:center;padding:7px;font-size:9px;color:var(--t4);letter-spacin
       <div class="metric-row"><span class="m-lbl">Total Callbacks</span><span class="m-val" id="mCB">—</span></div>
       <div class="metric-row"><span class="m-lbl">Total Missed</span><span class="m-val c-red" id="mMissed">—</span></div>
       <div class="metric-row"><span class="m-lbl">Total Transferred</span><span class="m-val" id="mXfer">—</span></div>
+      <div class="metric-row"><span class="m-lbl">Transferred by Agent</span><span class="m-val" id="mXferAgent">—</span></div>
       <div class="metric-row"><span class="m-lbl">Avg After-Contact Work</span><span class="m-val" id="mACW">—</span></div>
+      <div class="metric-row"><span class="m-lbl">Avg Agent Talk Time</span><span class="m-val" id="mTalkTime">—</span></div>
     </div>
   </div>
 </div>
 
-<footer>Priority Waste · Follow Priority · Brand Kit 4 · v1.3 · Data stored locally in browser</footer>
+<footer>Priority Waste · Follow Priority · Brand Kit 4 · v1.4 · Data stored locally in browser</footer>
 
 <script>
 /* ═══════════════════════════════════════════════════
@@ -384,7 +387,25 @@ function loadDataset(period) {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}_${period}`);
     if (!raw) return null;
-    return JSON.parse(raw); // { rows, filename, savedAt }
+    const parsed = JSON.parse(raw);
+    // ── Migration: backfill firstName/lastName for rows saved before v1.4 ──
+    if (parsed && parsed.rows) {
+      parsed.rows = parsed.rows.map(r => {
+        const needsMigration = !r.firstName || r.firstName === 'undefined'
+                            || !r.lastName  || r.lastName  === 'undefined';
+        if (needsMigration && r.name) {
+          const parts    = r.name.trim().split(/\s+/);
+          r.firstName    = parts[0] || '';
+          r.lastName     = parts.slice(1).join(' ') || '';
+        }
+        // Also ensure new numeric fields exist
+        if (r.transferred_agent === undefined) r.transferred_agent = 0;
+        if (r.avg_talk_time     === undefined) r.avg_talk_time     = 0;
+        if (r.talk_time_pct     === undefined) r.talk_time_pct     = '';
+        return r;
+      });
+    }
+    return parsed;
   } catch(e) {
     return null;
   }
@@ -524,15 +545,21 @@ function clearAllData() {
 }
 
 /* ═══════════════════════════════════════════════════
-   CSV PARSER — "Contacts Handled" drives the Calls column
+   CSV PARSER
+   • Handles quoted fields containing commas (e.g. "Guardado, Ariadna")
+   • Maps Agent First Name / Agent Last Name directly
+   • "Contacts Handled" = Calls column
+   • Answer rate strips % before parsing — fixes the blank gauge bug
 ═══════════════════════════════════════════════════ */
 function parseCSV(text) {
   const lines = text.trim().split('\n').filter(l => l.trim());
   if (lines.length < 2) throw new Error('File needs a header row and at least one data row');
 
+  // Strip BOM
   const rawHeader = lines[0].replace(/^\uFEFF/, '');
-  const headers   = rawHeader.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const headers   = splitCSVLine(rawHeader).map(h => h.trim());
 
+  // Case-insensitive column finder — exact match first, then contains
   function findCol(...candidates) {
     for (const c of candidates) {
       const lower = c.toLowerCase();
@@ -544,47 +571,96 @@ function parseCSV(text) {
     return -1;
   }
 
-  const iAgent    = findCol('agent');
-  const iHandled  = findCol('contacts handled');                         // ← primary Calls field
-  const iAnswerR  = findCol('agent answer rate', 'answer rate');
-  const iMissed   = findCol('contacts missed', 'missed');
-  const iAHT      = findCol('average handle time', 'avg handle time', 'handle time');
-  const iACW      = findCol('average after contact work time', 'after contact work', 'acw');
-  const iCallback = findCol('callback contacts handled', 'callback contacts', 'callbacks');
-  const iOutbound = findCol('contacts handled outbound', 'outbound');
-  const iXfer     = findCol('contacts transferred out', 'transferred out', 'transferred');
+  // Column index map — all known Amazon Connect fields
+  const iEmail      = findCol('agent');
+  const iFirst      = findCol('agent first name', 'first name');
+  const iLast       = findCol('agent last name',  'last name');
+  const iHandled    = findCol('contacts handled');              // Calls
+  const iAnswerR    = findCol('agent answer rate', 'answer rate');
+  const iMissed     = findCol('contacts missed',   'missed');
+  const iAHT        = findCol('average handle time', 'avg handle time', 'handle time');
+  const iACW        = findCol('average after contact work time', 'after contact work', 'acw');
+  const iCallback   = findCol('callback contacts handled', 'callback contacts', 'callbacks');
+  const iOutbound   = findCol('contacts handled outbound', 'outbound');
+  const iXfer       = findCol('contacts transferred out');
+  const iXferAgent  = findCol('contacts transferred out by agent', 'transferred out by agent');
+  const iTalkTime   = findCol('average agent talk time', 'agent talk time', 'avg talk time');
+  const iTalkPct    = findCol('agent talk time percent', 'talk time percent');
 
-  if (iAgent   < 0) throw new Error('"Agent" column not found. Check your Amazon Connect export.');
-  if (iHandled < 0) throw new Error('"Contacts Handled" column not found. Make sure you\'re exporting the right report.');
+  if (iEmail   < 0) throw new Error('"Agent" column not found.');
+  if (iHandled < 0) throw new Error('"Contacts Handled" column not found.');
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols  = lines[i].split(',').map(s => s.trim().replace(/^"|"$/g, ''));
-    const email = cols[iAgent] || '';
+    const cols = splitCSVLine(lines[i]);
+    const email = (cols[iEmail] || '').trim();
     if (!email) continue;
-    const name  = email.includes('@') ? formatName(email.split('@')[0]) : email;
-    const rawAR = iAnswerR >= 0 ? cols[iAnswerR] : '0';
+
+    // First/Last name: use explicit columns if present, else derive from email
+    let firstName = iFirst >= 0 ? (cols[iFirst] || '').trim() : '';
+    let lastName  = iLast  >= 0 ? (cols[iLast]  || '').trim() : '';
+    if (!firstName && !lastName) {
+      // Fallback: derive from email prefix
+      const slug  = email.includes('@') ? email.split('@')[0] : email;
+      const parts = slug.split(/[._-]/);
+      firstName   = parts[0] ? capitalise(parts[0]) : '';
+      lastName    = parts[1] ? capitalise(parts[1]) : '';
+    }
+    const fullName = [firstName, lastName].filter(Boolean).join(' ') || email;
+
+    // Answer rate — strip % and handle empty string
+    const rawAR      = iAnswerR >= 0 ? (cols[iAnswerR] || '').replace('%','').trim() : '0';
+    const answerRate = parseFloat(rawAR) || 0;
+
     rows.push({
-      name, email,
-      contacts_handled:  parseInt(cols[iHandled])                      || 0,
-      agent_answer_rate: parseFloat(rawAR.replace('%',''))             || 0,
-      contacts_missed:   iMissed   >= 0 ? parseInt(cols[iMissed])     || 0 : 0,
-      avg_acw:           iACW      >= 0 ? parseInt(cols[iACW])        || 0 : 0,
-      avg_handle_time:   iAHT      >= 0 ? parseInt(cols[iAHT])        || 0 : 0,
-      callback_contacts: iCallback >= 0 ? parseInt(cols[iCallback])   || 0 : 0,
-      outbound:          iOutbound >= 0 ? parseInt(cols[iOutbound])   || 0 : 0,
-      transferred:       iXfer     >= 0 ? parseInt(cols[iXfer])       || 0 : 0,
+      email,
+      firstName,
+      lastName,
+      name: fullName,
+      // ── CALLS = Contacts Handled ──
+      contacts_handled:   safeInt(cols, iHandled),
+      agent_answer_rate:  answerRate,
+      contacts_missed:    safeInt(cols, iMissed),
+      avg_acw:            safeInt(cols, iACW),
+      avg_handle_time:    safeInt(cols, iAHT),
+      callback_contacts:  safeInt(cols, iCallback),
+      outbound:           safeInt(cols, iOutbound),
+      transferred:        safeInt(cols, iXfer),
+      transferred_agent:  safeInt(cols, iXferAgent),
+      avg_talk_time:      safeInt(cols, iTalkTime),
+      talk_time_pct:      (cols[iTalkPct] || '').trim(),
     });
   }
   return rows.filter(r => r.name);
 }
 
-function formatName(slug) {
-  const parts = slug.split(/[._-]/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-  if (parts.length === 1 && parts[0].length > 2) {
-    return parts[0].charAt(0) + '. ' + parts[0].slice(1);
+// Parse a single CSV line respecting quoted fields (handles "Last, First")
+function splitCSVLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i+1] === '"') { cur += '"'; i++; } // escaped quote
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
   }
-  return parts.join(' ');
+  result.push(cur);
+  return result;
+}
+
+function safeInt(cols, idx) {
+  if (idx < 0 || idx >= cols.length) return 0;
+  return parseInt((cols[idx] || '').replace(/[^0-9.-]/g,'')) || 0;
+}
+
+function capitalise(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
 }
 
 /* ═══════════════════════════════════════════════════
@@ -623,7 +699,7 @@ function render() {
 
 function clearStats() {
   ['sTotalCalls','sAnswerRate','sCallbacks','sMissed','sAHT','sAgents',
-   'gaugeNum','tsActual','tsTarget','teamBarPct','mCB','mMissed','mXfer','mACW']
+   'gaugeNum','tsActual','tsTarget','teamBarPct','mCB','mMissed','mXfer','mXferAgent','mACW','mTalkTime']
     .forEach(id => { document.getElementById(id).textContent = '—'; });
   document.getElementById('gaugeFill').style.width = '0%';
   document.getElementById('teamBar').style.cssText  = 'width:0%';
@@ -680,17 +756,29 @@ function renderTable(rows) {
     const rowCls    = rank===1 ? 'lb-row top1-row' : rank===2 ? 'lb-row top2-row' : rank===3 ? 'lb-row top3-row' : 'lb-row';
     const rankCls   = rank===1 ? 'r1c' : rank===2 ? 'r2c' : rank===3 ? 'r3c' : '';
 
+    // Safely resolve name fields — handles old localStorage rows that predate v1.4
+    const firstName = (r.firstName && r.firstName !== 'undefined') ? r.firstName
+                    : r.name ? r.name.split(' ')[0] : '';
+    const lastName  = (r.lastName  && r.lastName  !== 'undefined') ? r.lastName
+                    : r.name ? r.name.split(' ').slice(1).join(' ') : '';
+    const displayFirst = firstName || '';
+    const displayLast  = lastName  || '';
+    const avatarInitials = ((displayFirst.charAt(0)) + (displayLast.charAt(0))).toUpperCase()
+                         || (r.name || r.email || '?').charAt(0).toUpperCase();
+    const talkDisp = r.avg_talk_time ? r.avg_talk_time + 's' : '—';
+    const talkPct  = r.talk_time_pct || '—';
+
     tbody += `
     <tr class="${rowCls}">
       <td><div class="rank-n ${rankCls}">${rank}</div></td>
-      <td><div class="av">${initials(r.name)}</div></td>
+      <td><div class="av">${avatarInitials}</div></td>
       <td>
-        <div class="csr-name">${r.name}</div>
+        <div class="csr-name">${displayFirst}${displayLast ? ' <strong>' + displayLast + '</strong>' : ''}</div>
         <div class="csr-email">${r.email}</div>
       </td>
       <td class="r">
         <div class="big-num">${r.contacts_handled.toLocaleString()}</div>
-        <div class="sub-num">contacts handled</div>
+        <div class="sub-num">calls handled</div>
       </td>
       <td class="r">
         <div class="big-num">${r.callback_contacts.toLocaleString()}</div>
@@ -710,6 +798,10 @@ function renderTable(rows) {
         <div style="font-size:13px;font-weight:600;color:#CCCCCC">${r.avg_handle_time}s</div>
         <div class="sub-num">AHT</div>
       </td>
+      <td class="r">
+        <div style="font-size:13px;font-weight:600;color:var(--t2)">${talkDisp}</div>
+        <div class="sub-num">${talkPct} talk</div>
+      </td>
       <td class="bar-cell">
         <div class="bar-meta"><span>0</span><span>Target ${TARGET}</span></div>
         <div class="bar-track">
@@ -725,11 +817,12 @@ function renderTable(rows) {
     <thead>
       <tr>
         <th>#</th><th></th><th>Agent</th>
-        <th class="r">Contacts Handled</th>
+        <th class="r">Calls Handled</th>
         <th class="r">Callbacks</th>
         <th>Answer Rate</th>
         <th class="r">Missed</th>
         <th class="r">AHT</th>
+        <th class="r">Talk Time</th>
         <th>Target vs Actual</th>
       </tr>
     </thead>
@@ -752,7 +845,7 @@ function renderRight(rows) {
       <div class="pod-bar" style="height:${h}px;background:${col}18;border-top:3px solid ${col}">
         <div class="pod-rank" style="color:${col}">${idx+1}</div>
       </div>
-      <div class="pod-name">${r.name.split(' ')[0]}</div>
+      <div class="pod-name">${(r.firstName && r.firstName !== 'undefined') ? r.firstName : (r.name||'').split(' ')[0]}</div>
     </div>`;
   });
   document.getElementById('podium').innerHTML = pcols || '<div style="color:var(--t4);font-size:11px;text-align:center;padding:20px 0">No data</div>';
@@ -773,11 +866,14 @@ function renderRight(rows) {
   document.getElementById('teamBarPct').textContent = (tPct >= 200 ? '200%+' : Math.round(tPct) + '%') + ' of target';
   document.getElementById('teamBarPct').className   = 'bar-pct ' + tPctCls;
 
-  document.getElementById('mCB').textContent     = rows.reduce((s,r) => s + r.callback_contacts, 0).toLocaleString();
-  document.getElementById('mMissed').textContent  = rows.reduce((s,r) => s + r.contacts_missed, 0).toLocaleString();
-  document.getElementById('mXfer').textContent    = rows.reduce((s,r) => s + r.transferred, 0).toLocaleString();
+  document.getElementById('mCB').textContent        = rows.reduce((s,r) => s + r.callback_contacts, 0).toLocaleString();
+  document.getElementById('mMissed').textContent    = rows.reduce((s,r) => s + r.contacts_missed, 0).toLocaleString();
+  document.getElementById('mXfer').textContent      = rows.reduce((s,r) => s + r.transferred, 0).toLocaleString();
+  document.getElementById('mXferAgent').textContent = rows.reduce((s,r) => s + r.transferred_agent, 0).toLocaleString();
   const avgACW = Math.round(rows.reduce((s,r) => s + r.avg_acw, 0) / rows.length);
-  document.getElementById('mACW').textContent     = avgACW + 's';
+  document.getElementById('mACW').textContent       = avgACW + 's';
+  const avgTalk = Math.round(rows.reduce((s,r) => s + r.avg_talk_time, 0) / rows.length);
+  document.getElementById('mTalkTime').textContent  = avgTalk ? avgTalk + 's' : '—';
 }
 
 /* ═══════════════════════════════════════════════════
